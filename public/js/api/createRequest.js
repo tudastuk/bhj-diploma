@@ -3,54 +3,46 @@
  * на сервер.
  * */
 const createRequest = (options = {}) => {
+  let xhr = new XMLHttpRequest();
+  xhr.responseType = 'json';
 
-    const { url, method, callback } = options;
+  let url = options.url;
+  let formData = new FormData();
 
-    const xhr = new XMLHttpRequest();
-    xhr.responseType = "json";
-
-    const isGet = method.toUpperCase() === "GET";
-
-    function getGetData() {
-        const data = options.data || {};
-        if (!data) {
-            return null;
-        }
-
-        let params = "";
-        Object.keys(data).forEach((key) => {
-            params += `${key}=${data[key]}&`;
-        });
-
-        return params.slice(0, -1);
+  if (options.data) {
+    if (options.method === 'GET') {
+      url += `?${Object.entries(options.data)
+        .map(
+          ([key, value]) =>
+            `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
+        )
+        .join('&')}`;
+    } else {
+      Object.entries(options.data).forEach((keyValue) =>
+        formData.append(...keyValue)
+      );
     }
+  }
 
-    function getNonGetData() {
-        const data = options.data || {};
-        const formData = new FormData();
+  xhr.onreadystatechange = () => {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      let err = null;
+      let response = null;
 
-        Object.keys(data).forEach((key) => {
-            formData.append(key, data[key]);
-        });
-
-        return formData;
-    }
-
-    xhr.open(method, url); // инициализация запроса
-
-    xhr.onload = () => {
-        if (xhr.status === 200) {
-            callback(null, xhr.response);
+      if (xhr.status === 200) {
+        if (xhr.response && xhr.response.success) {
+          response = xhr.response;
         } else {
-            callback("Ошибка: проблема с отправкой запроса", {});
+          err = xhr.response;
         }
-    };
+      } else {
+        err = new Error('Что-то пошло не так');
+      }
 
-    xhr.onerror = () => {
-        callback(new Error("Ошибка: проблема с сетью"));
-    };
+      options.callback(err, response);
+    }
+  };
 
-    const requestData = isGet ? getGetData() : getNonGetData();
-
-    xhr.send(requestData); // отправка запроса
+  xhr.open(options.method, url);
+  xhr.send(formData);
 };
